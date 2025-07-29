@@ -1,0 +1,131 @@
+// #!/usr/bin/env node
+
+const net = require('node:net')
+const process = require('process');
+
+// Parse command line arguments
+function parseArguments() {
+  const args = process.argv.slice(2); // Remove 'node' and script name
+
+  if (args.length < 3) {
+    console.error('Usage: node index.js <ip_address> <subcommand> <argument>');
+    console.error('Example: node index.js 192.168.3.100 fill-pattern 1024');
+    process.exit(1);
+  }
+
+  return {
+    ipAddress: args[0],
+    subcommand: args[1],
+    argument: args[2]
+  };
+}
+
+// Validate IP address format (basic validation)
+function isValidIP(ip) {
+  const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
+  if (!ipRegex.test(ip)) return false;
+
+  const parts = ip.split('.');
+  return parts.every(part => {
+    const num = parseInt(part, 10);
+    return num >= 0 && num <= 255;
+  });
+}
+
+// Handle different subcommands
+function handleSubcommand(ipAddress, subcommand, argument) {
+  console.log(`Target IP: ${ipAddress}`);
+  console.log(`Subcommand: ${subcommand}`);
+  console.log(`Argument: ${argument}`);
+
+  switch (subcommand) {
+    case 'fill-pattern':
+      handleFillPattern(ipAddress, argument);
+      break;
+
+    // Add more subcommands here as needed
+    case 'another-command':
+      handleAnotherCommand(ipAddress, argument);
+      break;
+
+    default:
+      console.error(`Unknown subcommand: ${subcommand}`);
+      console.error('Available subcommands: fill-pattern');
+      process.exit(1);
+  }
+}
+
+// Handle fill-pattern subcommand
+function handleFillPattern(ipAddress, sizeArg) {
+  const size = parseInt(sizeArg, 10);
+
+  if (isNaN(size) || size <= 0) {
+    console.error('Invalid size argument. Must be a positive number.');
+    process.exit(1);
+  }
+
+  console.log(`Executing fill-pattern on ${ipAddress} with size ${size}`);
+
+  const client = net.createConnection(7332, ipAddress);
+
+  client.on('connect', () => {
+    console.log('connected');
+
+    const buffer = Buffer.from([
+      0xA5, 0xA5, 0xA5, 0xA5,   // preamble
+      0xff,                     // type
+      0x01, 0x00, 0x00,         // test command
+      0x08, 0x00, 0x00, 0x00,   // payload size
+      0x00, 0x00, 0x00, 0x00,   // count
+      0x00, 0x00, 0x00, 0x00,   // pattern
+      0x00, 0x00, 0x00, 0x00    // crc32
+    ])
+
+    client.write(buffer, () => {
+      console.log('data written', buffer)
+    })
+  })
+
+  client.on('error', err => {
+    console.error('connection error:', err);
+    process.exit(1);
+  })
+}
+
+// Placeholder for additional subcommands
+function handleAnotherCommand(ipAddress, argument) {
+  console.log(`Executing another-command on ${ipAddress} with argument ${argument}`);
+  // TODO: Implement logic for other subcommands
+}
+
+// Main function
+function main() {
+  try {
+    const { ipAddress, subcommand, argument } = parseArguments();
+
+    // Validate IP address
+    if (!isValidIP(ipAddress)) {
+      console.error(`Invalid IP address: ${ipAddress}`);
+      process.exit(1);
+    }
+
+    // Handle the subcommand
+    handleSubcommand(ipAddress, subcommand, argument);
+
+  } catch (error) {
+    console.error('Error:', error.message);
+    process.exit(1);
+  }
+}
+
+// Run the program
+if (require.main === module) {
+  main();
+}
+
+module.exports = {
+  parseArguments,
+  isValidIP,
+  handleSubcommand,
+  handleFillPattern
+};
