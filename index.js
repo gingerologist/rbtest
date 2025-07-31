@@ -3,6 +3,8 @@
 const net = require('node:net')
 const process = require('process');
 
+const TIMEOUT = 10000;
+
 // Parse command line arguments
 function parseArguments() {
   const args = process.argv.slice(2); // Remove 'node' and script name
@@ -60,6 +62,9 @@ function handleFillPattern(ipAddress, sizeArg) {
   const size = parseInt(sizeArg, 10);
   let received = 0
   let timer;
+  let connectTime = 0;
+  let firstArrival = 0;
+  let lastArrival = 0;
 
   if (isNaN(size) || size <= 0) {
     console.error('Invalid size argument. Must be a positive number.');
@@ -69,7 +74,7 @@ function handleFillPattern(ipAddress, sizeArg) {
   console.log(`Executing fill-pattern on ${ipAddress} with size ${size}`);
 
   const client = net.createConnection({
-    port: 7332, 
+    port: 7332,
     host: ipAddress,
     allowHalfOpen: true
   });
@@ -82,6 +87,8 @@ function handleFillPattern(ipAddress, sizeArg) {
 
   client.on('connect', () => {
     console.log('connected');
+
+    connectTime = Date.now();
 
     const buffer = Buffer.from([
       0xA5, 0xA5, 0xA5, 0xA5,   // preamble
@@ -98,23 +105,39 @@ function handleFillPattern(ipAddress, sizeArg) {
 
     client.write(buffer, () => {
       console.log('data written', buffer)
-      // client.end(); // half open
     })
 
-    timer = setTimeout(timeout, 15000);
+    timer = setTimeout(timeout, TIMEOUT);
   })
 
   client.on('data', data => {
     clearTimeout(timer);
 
-    console.log(data.length, data);
+    if (firstArrival === 0) {
+      firstArrival = Date.now();
+      lastArrival = Date.now();
+    } else {
+      lastArrival = Date.now();
+    }
 
-    received += data.length; 
+    received += data.length;
     if (received >= size * 4) {
       client.destroy();
+
+      const total_time = (lastArrival - connectTime) / 1000;
+      const recv_time = (lastArrival - firstArrival) / 1000;
+
+      console.log(`total time used: ${total_time.toFixed(2)} sec`);
+      console.log(`receiving time used: ${recv_time.toFixed(2)} sec`);
+
+      if (lastArrival > firstArrival) {
+        const bandwidth = received / recv_time;
+        console.log(`receiving bandwidth: ${bandwidth.toFixed(2)} bytes / sec`)
+      }
+
       process.exit();
     } else {
-      timer = setTimeout(timeout, 15000);
+      timer = setTimeout(timeout, TIMEOUT);
     }
   })
 
