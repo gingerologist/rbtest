@@ -58,6 +58,8 @@ function handleSubcommand(ipAddress, subcommand, argument) {
 // Handle fill-pattern subcommand
 function handleFillPattern(ipAddress, sizeArg) {
   const size = parseInt(sizeArg, 10);
+  let received = 0
+  let timer;
 
   if (isNaN(size) || size <= 0) {
     console.error('Invalid size argument. Must be a positive number.');
@@ -66,7 +68,17 @@ function handleFillPattern(ipAddress, sizeArg) {
 
   console.log(`Executing fill-pattern on ${ipAddress} with size ${size}`);
 
-  const client = net.createConnection(7332, ipAddress);
+  const client = net.createConnection({
+    port: 7332, 
+    host: ipAddress,
+    allowHalfOpen: true
+  });
+
+  const timeout = () => {
+    console.log('connection timeout');
+    client.destroy();
+    process.exit(1);
+  }
 
   client.on('connect', () => {
     console.log('connected');
@@ -76,19 +88,45 @@ function handleFillPattern(ipAddress, sizeArg) {
       0xff,                     // type
       0x01, 0x00, 0x00,         // test command
       0x08, 0x00, 0x00, 0x00,   // payload size
-      0x00, 0x00, 0x00, 0x00,   // count
+      0x01, 0x00, 0x00, 0x00,   // count
       0x00, 0x00, 0x00, 0x00,   // pattern
       0x00, 0x00, 0x00, 0x00    // crc32
     ])
 
+    buffer.writeUInt32LE(size, 12);
+    buffer.writeUInt32LE(0xdeadbeef, 16);
+
     client.write(buffer, () => {
       console.log('data written', buffer)
+      // client.end(); // half open
     })
+
+    timer = setTimeout(timeout, 15000);
+  })
+
+  client.on('data', data => {
+    clearTimeout(timer);
+
+    console.log(data.length, data);
+
+    received += data.length; 
+    if (received >= size * 4) {
+      client.destroy();
+      process.exit();
+    } else {
+      timer = setTimeout(timeout, 15000);
+    }
   })
 
   client.on('error', err => {
     console.error('connection error:', err);
-    process.exit(1);
+    client.end(() => {
+      process.exit(1);
+    })
+  })
+
+  client.on('close', () => {
+    console.log('connection closed');
   })
 }
 
