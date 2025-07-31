@@ -10,8 +10,8 @@ function parseArguments() {
   const args = process.argv.slice(2); // Remove 'node' and script name
 
   if (args.length < 3) {
-    console.error('Usage: node index.js <ip_address> <subcommand> <argument>');
-    console.error('Example: node index.js 192.168.3.100 fill-pattern 1024');
+    console.error('Usage: .\\rbtest.exe <ip_address> <subcommand> <argument>');
+    console.error('Example: .\\rbtest.exe 192.168.3.100 fill-pattern 1024');
     process.exit(1);
   }
 
